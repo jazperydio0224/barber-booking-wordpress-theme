@@ -52,7 +52,6 @@
                                 </div>
                             </div>
 
-
                             <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
                                 <div class="d-flex align-items-center">
                                     <i class="fa-solid fa-square-poll-vertical me-2"></i>
@@ -78,6 +77,26 @@
                                 </div>
                                 <div class="flex-shrink-1">
                                     <p class="text-break w-auto" id="modal-event-reference-number"></p>
+                                </div>
+                            </div>
+
+                            <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                                <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                                    <i class="fa-solid fa-user me-2"></i>
+                                    <p class="fw-semibold">Barber: </p>
+                                </div>
+                                <div class="flex-shrink-1">
+                                    <p class="text-break w-auto" id="modal-event-barber-name"></p>
+                                </div>
+                            </div>
+
+                            <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                                <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                                    <i class="fa-solid fa-calendar-check me-2"></i>
+                                    <p class="fw-semibold">Booking Type: </p>
+                                </div>
+                                <div class="flex-shrink-1">
+                                    <p class="text-break w-auto" id="modal-event-booking-type"></p>
                                 </div>
                             </div>
                         </div>

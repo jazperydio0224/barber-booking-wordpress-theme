@@ -666,6 +666,7 @@
               .find(`input[name='full-name-group-${customer.guestId}']`)
               .val()
               .trim();
+
             groupBookingData[customer.guestId] = {
               ...groupBookingData[customer.guestId],
               fullName: guestFullName,
@@ -1613,6 +1614,9 @@
       let summaryGroupContainer = $("#accordion-summary-group");
       summaryGroupContainer.empty();
 
+      let groupBookingTotalDuration = 0;
+      let groupBookingTotalPrice = 0;
+
       groupBookingData.forEach(function (guest, index) {
         const guestId = guest.guestId;
         const fullName = guest.fullName;
@@ -1657,6 +1661,7 @@
         },
         0);
 
+        groupBookingTotalPrice += totalPriceCalculated;
         groupBookingData[index].totalPrice = totalPriceCalculated;
 
         const totalMinutesCalculated = guest.selectedServices.reduce(function (
@@ -1667,6 +1672,7 @@
         },
         0);
 
+        groupBookingTotalDuration += totalMinutesCalculated;
         const totalPriceFormatted = "$ " + totalPriceCalculated.toFixed(2);
         const totalDurationFormatted = totalMinutesCalculated + " mins";
 
@@ -1683,17 +1689,29 @@
                         <div id="collapse-booking-items-group-${guestId}" class="accordion-collapse collapse show" data-bs-parent="#accordion-summary-group">
                             <div class="accordion-body">
                                 <p class="d-shaver-paragraph mb-3 mb-md-4 fw-medium">Full Name: <span class="fw-normal">${
-                                  guestId === 0 ? fullName : `Guest ${guestId}`
+                                  fullName && formFilloutType !== "main only"
+                                    ? fullName
+                                    : guestId === 0
+                                    ? fullName
+                                    : "N/A"
                                 }</span></p>
-                                <p class="d-shaver-paragraph mb-3 mb-md-4 fw-medium">Email Address: <span class="fw-normal">${
-                                  guestId === 0 ? contactNumber : "N/A"
-                                }</span></p>
-                                <p class="d-shaver-paragraph mb-3 mb-md-4 fw-medium">Contact Number: <span class="fw-normal">${
-                                  guestId === 0 ? emailAddress : "N/A"
-                                }</span></p>
-                                <p class="d-shaver-paragraph mb-3 mb-md-4 fw-medium">Date of Birth: <span class="fw-normal">${
-                                  guestId === 0 ? formattedDateOfBirth : "N/A"
-                                }</span></p>
+                                ${
+                                  guestId === 0
+                                    ? `
+                                      <p class="d-shaver-paragraph mb-3 mb-md-4 fw-medium">Email Address: <span class="fw-normal">${
+                                        contactNumber ? contactNumber : "N/A"
+                                      }</span></p>
+                                      <p class="d-shaver-paragraph mb-3 mb-md-4 fw-medium">Contact Number: <span class="fw-normal">${
+                                        emailAddress ? emailAddress : "N/A"
+                                      }</span></p>
+                                      <p class="d-shaver-paragraph mb-3 mb-md-4 fw-medium">Date of Birth: <span class="fw-normal">${
+                                        formattedDateOfBirth
+                                          ? formattedDateOfBirth
+                                          : "N/A"
+                                      }</span></p>
+                                      `
+                                    : ""
+                                }
 
                                 <hr class="bg-black border-2 border-top border-black mb-3 mb-md-4" />
 
@@ -1739,6 +1757,21 @@
 
         summaryGroupContainer.append(summaryItem);
       });
+
+      summaryGroupContainer.append(`
+            <div class="d-flex flex-column gap-2">
+                <div class="d-flex justify-content-between">
+                    <p class="fw-semibold d-shaver-paragraph">Group Total Duration</p>
+                    <p class="fw-semibold d-shaver-paragraph">${groupBookingTotalDuration} mins</p>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <p class="fw-semibold d-shaver-paragraph">Group Total Price</p>
+                    <p class="fw-semibold d-shaver-paragraph">$ ${groupBookingTotalPrice.toFixed(
+                      2
+                    )}</p>
+                </div>
+            </div>
+        `);
     }
 
     /** Render Contact Number ITL Form */
@@ -1792,15 +1825,16 @@
       let guestForms = ``;
 
       if (guestIds.length > 0) {
-        guestForms = `
-          <h5 class="d-shaver-h5 mb-2 mb-md-3 mb-lg-4">Guest Details</h5>
-        `;
+        guestForms = ``;
 
         guestIds.forEach((guestId) => {
           guestForms += `
-            <div class="mb-3 mb-md-4">
-              <label for="full-name-group-${guestId}" class="form-label d-shaver-paragraph fw-light">Guest ${guestId} Full Name</label>
-              <input type="text" class="form-control d-shaver-paragraph d-shaver-form-field" id="full-name-group-${guestId}" name="full-name-group-${guestId}" aria-describedby="textHelp" required>
+            <div>
+              <h5 class="d-shaver-h5 mb-2 mb-md-3 mb-lg-4">Guest ${guestId} Details</h5>
+              <div class="mb-3 mb-md-4">
+                <label for="full-name-group-${guestId}" class="form-label d-shaver-paragraph fw-light">Full Name</label>
+                <input type="text" class="form-control d-shaver-paragraph d-shaver-form-field" id="full-name-group-${guestId}" name="full-name-group-${guestId}" aria-describedby="textHelp" required>
+              </div>
             </div>
           `;
         });
@@ -1876,8 +1910,10 @@
 
         const updatedGroupBookingItems = groupBookingData.map(function (guest) {
           const barber = guest.selectedBarber;
-          const date = guest.selectedBookingDate;
-          const time = guest.selectedBookingTime;
+          const date = selectedBookingDate;
+          const time = selectedBookingTime;
+          const guestId = guest.guestId;
+          const isMain = guest.isMain;
           const customer = guest.fullName;
           const mobileNumber = guest?.contactNumber || null;
           const emailAddress = guest?.emailAddress || null;
@@ -1887,6 +1923,8 @@
             barber,
             date,
             time,
+            guestId,
+            isMain,
             customer,
             mobileNumber,
             emailAddress,
@@ -1907,73 +1945,71 @@
         });
 
         console.log("updatedGroupBookingItems:", updatedGroupBookingItems);
+        const groupId = crypto.randomUUID();
 
-        // const response = await fetch(dShaverApiGroupSettings.bookingApi, {
-        //   method: "POST",
-        //   headers: {
-        //     "Content-Type": "application/json",
-        //     "X-WP-Nonce": dShaverApiGroupSettings.nonce,
-        //   },
-        //   body: JSON.stringify(updatedGroupBookingItems),
-        // });
+        const response = await fetch(dShaverApiGroupSettings.bookingApi, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-WP-Nonce": dShaverApiGroupSettings.nonce,
+          },
+          body: JSON.stringify({
+            bookingType: bookingTypeSelection,
+            formFilloutType: formFilloutType,
+            groupId: groupId,
+            bookingItems: updatedGroupBookingItems,
+          }),
+        });
 
-        // const data = await response.json();
+        const data = await response.json();
 
-        // console.log(data);
+        console.log(data);
 
-        // if (data.success) {
-        //   showToast(data.message, "success");
-        //   resetTrackedValuesGroup();
+        if (data.success) {
+          showToast(data.message, "success");
+          resetTrackedValuesGroup();
 
-        //   // const {
-        //   //   booking_reference_number,
-        //   //   client_name,
-        //   //   barber_name,
-        //   //   appointment_date,
-        //   //   appointment_time,
-        //   //   total_amount,
-        //   //   services,
-        //   // } = data.data;
+          if (data.data.bookingType === "group") {
+            const bookingDetailsArray = data.data.bookingDetails;
 
-        //   // const pathName =
-        //   //   `${dShaverApiGroupSettings.bookingSuccessfulURL}?` +
-        //   //   `bookingRefNumber=${encodeURIComponent(
-        //   //     booking_reference_number
-        //   //   )}&` +
-        //   //   `clientName=${encodeURIComponent(client_name)}&` +
-        //   //   `barberName=${encodeURIComponent(barber_name)}&` +
-        //   //   `appointmentDate=${encodeURIComponent(appointment_date)}&` +
-        //   //   `appointmentTime=${encodeURIComponent(appointment_time)}&` +
-        //   //   `totalAmount=${encodeURIComponent(total_amount)}&` +
-        //   //   `services=${encodeURIComponent(services)}`;
-        //   // window.location.href = pathName;
-        // } else {
-        //   showToast(data.message, "danger");
-        //   hideBookingSubmissionSpinnerGroup();
-        //   $("#final-go-back-btn-group").removeClass("d-none");
-        //   $("#final-go-back-btn-group").attr("disabled", false);
-        //   $("#book-btn-group").attr("disabled", false);
-        //   preventBookingModalClose = false;
+            const pathName =
+              `${dShaverApiGroupSettings.bookingSuccessfulURL}?` +
+              `bookingType=${encodeURIComponent(data.data.bookingType)}&` +
+              `formFilloutType=${encodeURIComponent(
+                data.data.formFilloutType
+              )}&` +
+              `bookingDetails=${encodeURIComponent(
+                JSON.stringify(bookingDetailsArray)
+              )}`;
+            window.location.href = pathName;
+          }
+        } else {
+          showToast(data.message, "danger");
+          hideBookingSubmissionSpinnerGroup();
+          $("#final-go-back-btn-group").removeClass("d-none");
+          $("#final-go-back-btn-group").attr("disabled", false);
+          $("#book-btn-group").attr("disabled", false);
+          preventBookingModalClose = false;
 
-        //   // clear timeslots container
-        //   const containerTimeSlots = $("#list-group-time-container-group");
-        //   containerTimeSlots.empty();
+          // clear timeslots container
+          const containerTimeSlots = $("#list-group-time-container-group");
+          containerTimeSlots.empty();
 
-        //   // close the modal
-        //   $("#bookingInfoModalGroup").modal("hide");
+          // close the modal
+          $("#bookingInfoModalGroup").modal("hide");
 
-        //   // Reset selected booking date and time
-        //   selectedBookingDate = null;
-        //   selectedBookingTime = null;
+          // Reset selected booking date and time
+          selectedBookingDate = null;
+          selectedBookingTime = null;
 
-        //   // Reload calendar and unavailable dates
-        //   await loadBookingCalendarGroup();
-        // }
+          // Reload calendar and unavailable dates
+          await loadBookingCalendarGroup();
+        }
       } catch (error) {
         console.log(error);
         showToast("Error submitting booking", "danger");
-        // const pathName = `${dShaverApiGroupSettings.bookingFailedURL}`;
-        // window.location.href = pathName;
+        const pathName = `${dShaverApiGroupSettings.bookingFailedURL}`;
+        window.location.href = pathName;
       }
     }
 

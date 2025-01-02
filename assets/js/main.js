@@ -4,69 +4,69 @@
 
 /* VARIABLES */
 // Single
-var stickyTabPills = $("#services-tab-container").length
+let stickyTabPills = $("#services-tab-container").length
   ? $("#services-tab-container")
   : null;
-var stickyTabPillOffset = stickyTabPills ? stickyTabPills.offset().top : null;
+let stickyTabPillOffset = stickyTabPills ? stickyTabPills.offset().top : null;
 
-var stickyScheduleCostingContainer = $("#schedule-costing-container").length
+let stickyScheduleCostingContainer = $("#schedule-costing-container").length
   ? $("#schedule-costing-container")
   : null;
-var stickyScheduleImage = $("#booking-sched-photo").length
+let stickyScheduleImage = $("#booking-sched-photo").length
   ? $("#booking-sched-photo")
   : null;
-var stickyScheduleInfoContainer = $("#booking-sched-info").length
+let stickyScheduleInfoContainer = $("#booking-sched-info").length
   ? $("#booking-sched-info")
   : null;
-var stickyScheduleContainerOffset = stickyScheduleCostingContainer
+let stickyScheduleContainerOffset = stickyScheduleCostingContainer
   ? stickyScheduleCostingContainer.offset().top
   : null;
 
-var $fixedScheduleCostingContainerMobile = $("#costing-container-mobile").length
+let $fixedScheduleCostingContainerMobile = $("#costing-container-mobile").length
   ? $("#costing-container-mobile")
   : null;
-var $bookingContainer = $("#main-booking-container").length
+let $bookingContainer = $("#main-booking-container").length
   ? $("#main-booking-container")
   : null;
 
 // Group
-var stickyTabPillsGroup = $("#services-tab-container-group").length
+let stickyTabPillsGroup = $("#services-tab-container-group").length
   ? $("#services-tab-container-group")
   : null;
 
-var stickyTabPillOffsetGroup = stickyTabPillsGroup
+let stickyTabPillOffsetGroup = stickyTabPillsGroup
   ? stickyTabPillsGroup.offset().top
   : null;
 
-var stickyScheduleCostingContainerGroup = $("#schedule-costing-container-group")
+let stickyScheduleCostingContainerGroup = $("#schedule-costing-container-group")
   .length
   ? $("#schedule-costing-container-group")
   : null;
 
-var stickyScheduleImageGroup = $("#booking-sched-photo-group").length
+let stickyScheduleImageGroup = $("#booking-sched-photo-group").length
   ? $("#booking-sched-photo-group")
   : null;
 
-var stickyScheduleInfoContainerGroup = $("#booking-sched-info-group").length
+let stickyScheduleInfoContainerGroup = $("#booking-sched-info-group").length
   ? $("#booking-sched-info-group")
   : null;
 
-var stickyScheduleContainerOffsetGroup = stickyScheduleCostingContainerGroup
+let stickyScheduleContainerOffsetGroup = stickyScheduleCostingContainerGroup
   ? stickyScheduleCostingContainerGroup.offset().top
   : null;
 
-var $fixedScheduleCostingContainerMobileGroup = $(
+let $fixedScheduleCostingContainerMobileGroup = $(
   "#costing-container-mobile-group"
 ).length
   ? $("#costing-container-mobile-group")
   : null;
 
-var $bookingContainerGroup = $("#main-booking-container").length
+let $bookingContainerGroup = $("#main-booking-container").length
   ? $("#main-booking-container")
   : null;
 
 // Booking Starts
-var bookingTypeSelection = null;
+let bookingTypeSelection = "single";
 window.bookingTypeSelection = bookingTypeSelection;
 /* VARIABLES */
 

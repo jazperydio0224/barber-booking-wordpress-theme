@@ -24,7 +24,42 @@ get_header();
             <div class="container-fluid dashboard-section" id="bookings-calendar">
                 <h2 class="fw-bold mb-4">Bookings Calendar</h2>
                 <button class="btn btn-dark mb-4" id="add-new-walk-in-btn">Add Walk-In</button>
-                <div id='full-calendar'></div>
+                <div class="container-fluid px-0" id="all-calendars-container">
+                    <?php
+                    $args = array(
+                        'post_type' => 'barber',
+                        'posts_per_page' => -1,
+                        'orderby' => 'menu_order',
+                        'order' => 'ASC',
+                    );
+                    $barber_query = new WP_Query($args);
+                    if ($barber_query->have_posts()):
+                        $barber_count = 0;
+
+                        echo '<div class="row">';
+
+                        while ($barber_query->have_posts()) :
+                            $barber_query->the_post();
+                            $barber_id = get_the_ID();
+                            $barber_name = get_the_title();
+
+                            if ($barber_count > 0 && $barber_count % 2 == 0) {
+                                echo '</div><div class="row">';
+                            }
+
+                            echo '<div class="col-12 col-xxl-6 mb-4 mb-xl-0">';
+                            echo '<h4 class="fw-bold mb-3">' . $barber_name . "'s" . ' Calendar' . '</h4>';
+                            echo '<div class="full-calendar" id="full-calendar-' . $barber_id . '" data-barber-id="' . $barber_id . '"></div>';
+                            echo '</div>';
+
+                            $barber_count++;
+                        endwhile;
+
+                        echo '</div>';
+                        wp_reset_postdata();
+                    endif;
+                    ?>
+                </div>
             </div>
         </main>
     </div>

@@ -1,37 +1,38 @@
 /* START - VARIABLES */
-var bookingsCalendar;
+let bookingsCalendars = [];
+let allExistingBookings = [];
 
 // Update Status Variables
-var referenceNumber = null;
-var selectedStatus = null;
-var clientId = null;
-var serviceId = null;
-var haircutImages = null;
-var customerNotes = null;
+let referenceNumber = null;
+let selectedStatus = null;
+let clientId = null;
+let serviceId = null;
+let haircutImages = null;
+let customerNotes = null;
 
 // Resched Variables
-var bookingRefNumber = null;
-var reschedDate = null;
-var reschedTime = null;
+let bookingRefNumber = null;
+let reschedDate = null;
+let reschedTime = null;
 
 // WalkIn Variables
-var clientSelectionType = "existing";
-var selectedServices = [];
-var totalPrice = 0;
-var selectedBookingDate = null;
-var selectedBookingTime = null;
-var walkInClientId = null;
-var fullName = null;
-var contactNumber = null;
-var emailAddress = null;
-var dateOfBirth = null;
+let clientSelectionType = "existing";
+let selectedServices = [];
+let totalPrice = 0;
+let selectedBookingDate = null;
+let selectedBookingTime = null;
+let walkInClientId = null;
+let fullName = null;
+let contactNumber = null;
+let emailAddress = null;
+let dateOfBirth = null;
 
 // Walk-in Steps
-var currentStep = 1;
-var isWalkInSubmitting = false;
+let currentStep = 1;
+let isWalkInSubmitting = false;
 
 // International Phone Input
-var itiInstance = null;
+let itiInstance = null;
 
 /** END - VARIABLES **/
 
@@ -45,8 +46,8 @@ $(document).ready(async function () {
 
   /** START - REBOOKING **/
   $(document).on("click", ".list-item-rebooking-time", function () {
-    var itemTime = $(this);
-    var bookingTime = itemTime.data("booking-time"); // Fixed from "data-booking-time"
+    const itemTime = $(this);
+    const bookingTime = itemTime.data("booking-time"); // Fixed from "data-booking-time"
     reschedTime = bookingTime;
     updateTimeButtonStates("list-item-rebooking-time", reschedTime);
   });
@@ -340,201 +341,207 @@ $(document).ready(async function () {
 /** START - FUNCTIONS **/
 async function loadFullCalendar() {
   initializeCalendarModalDefaultContent();
-  var calendarEl = document.getElementById("full-calendar");
-  bookingsCalendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: "listWeek",
-    nowIndicator: true,
-    headerToolbar: {
-      left: "prev,next",
-      center: "title",
-      right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
-    },
-    events: async function (fetchInfo, successCallback, failureCallback) {
-      try {
-        const bookings = await loadBookingCalendarData(
-          fetchInfo.startStr,
-          fetchInfo.endStr
-        );
+  const allCalendars = document.querySelectorAll(".full-calendar");
+  console.log("allCalendars", allCalendars);
 
-        const formattedBookings = bookings.map((booking) => {
-          const {
-            reference_number,
-            client_id,
-            client_name,
-            appointment_date,
-            appointment_time,
-            services,
-            booking_service_status,
-            notes,
-          } = booking;
+  allCalendars.forEach((calendar) => {
+    const barberId = calendar.getAttribute("data-barber-id");
 
-          const startDateTime = new Date(
-            `${appointment_date}T${appointment_time}`
+    const bookingsCalendar = new FullCalendar.Calendar(calendar, {
+      initialView: "listWeek",
+      nowIndicator: true,
+      headerToolbar: {
+        left: "prev,next",
+        center: "title",
+        right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+      },
+      events: async function (fetchInfo, successCallback, failureCallback) {
+        try {
+          const bookings = await loadBookingCalendarData(
+            barberId,
+            fetchInfo.startStr,
+            fetchInfo.endStr
           );
 
-          if (isNaN(startDateTime.getTime())) {
-            console.error(
-              "Invalid date or time:",
+          console.log("bookings", bookings);
+
+          const formattedBookings = bookings.map((booking) => {
+            const {
+              reference_number,
+              client_id,
+              client_name,
               appointment_date,
-              appointment_time
+              appointment_time,
+              barber_id,
+              barber_name,
+              booking_type,
+              group_id,
+              services,
+              booking_service_status,
+              notes,
+            } = booking;
+
+            const startDateTime = new Date(
+              `${appointment_date}T${appointment_time}`
             );
-            return null; // Handle invalid date
-          }
 
-          return {
-            title: `${client_name}`,
-            start: startDateTime.toISOString(),
-            end: new Date(
-              startDateTime.getTime() + 15 * 60 * 1000
-            ).toISOString(),
-            client_id: client_id,
-            reference_number: reference_number,
-            appointment_date: appointment_date,
-            appointment_time: appointment_time,
-            services: services,
-            booking_service_status: booking_service_status,
-            notes,
-          };
-        });
+            if (isNaN(startDateTime.getTime())) {
+              console.error(
+                "Invalid date or time:",
+                appointment_date,
+                appointment_time
+              );
+              return null; // Handle invalid date
+            }
 
-        successCallback(formattedBookings);
-      } catch (error) {
-        failureCallback(error);
-      }
-    },
-    eventDidMount: function (info) {
-      if (
-        info.event.extendedProps.booking_service_status.toLowerCase() ===
-        "completed"
-      ) {
-        info.el.style.color = "#28a745";
-      } else if (
-        info.event.extendedProps.booking_service_status.toLowerCase() ===
-        "cancelled"
-      ) {
-        info.el.style.color = "#dc3545";
-      } else if (
-        info.event.extendedProps.booking_service_status.toLowerCase() ===
-        "no show"
-      ) {
-        info.el.style.color = "#ff5722";
-      }
-    },
-    eventClick: function (info) {
-      setUpdateServiceStatusEventListener();
+            return {
+              title:
+                booking_type === "group"
+                  ? `${client_name} (GROUP)`
+                  : `${client_name}`,
+              start: startDateTime.toISOString(),
+              end: new Date(
+                startDateTime.getTime() + 15 * 60 * 1000
+              ).toISOString(),
+              client_id: client_id,
+              reference_number: reference_number,
+              appointment_date: appointment_date,
+              appointment_time: appointment_time,
+              barber_id: barber_id,
+              barber_name: barber_name,
+              booking_type: booking_type,
+              group_id: group_id,
+              services: services,
+              booking_service_status: booking_service_status,
+              notes,
+            };
+          });
 
-      // Populate the modal with event details
-      const event = info.event;
+          successCallback(formattedBookings);
+          allExistingBookings.push(...formattedBookings);
+        } catch (error) {
+          failureCallback(error);
+        }
+      },
+      eventDidMount: function (info) {
+        if (
+          info.event.extendedProps.booking_service_status.toLowerCase() ===
+          "completed"
+        ) {
+          info.el.style.color = "#28a745";
+        } else if (
+          info.event.extendedProps.booking_service_status.toLowerCase() ===
+          "cancelled"
+        ) {
+          info.el.style.color = "#dc3545";
+        } else if (
+          info.event.extendedProps.booking_service_status.toLowerCase() ===
+          "no show"
+        ) {
+          info.el.style.color = "#ff5722";
+        }
+      },
+      eventClick: function (info) {
+        setUpdateServiceStatusEventListener();
 
-      const retrievedBookingServiceStatus =
-        event.extendedProps.booking_service_status;
-      let styledBookingServiceStatus;
+        const bookingType = info.event.extendedProps.booking_type;
+        const bookingId = info.event.extendedProps.reference_number;
+        const groupId = info.event.extendedProps.group_id;
+        let bookingData = "";
 
-      // Style booking service status
-      if (retrievedBookingServiceStatus.toLowerCase() === "pending") {
-        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-warning text-dark text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
-      } else if (retrievedBookingServiceStatus.toLowerCase() === "completed") {
-        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-success text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
-      } else if (retrievedBookingServiceStatus.toLowerCase() === "no show") {
-        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge text-uppercase" style="background-color: #ff5722 !important" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
-      } else if (retrievedBookingServiceStatus.toLowerCase() === "cancelled") {
-        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-danger text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
-      }
+        if (bookingType.toLowerCase() === "single") {
+          bookingData = allExistingBookings.find(
+            (booking) => booking.reference_number === bookingId
+          );
+        } else {
+          bookingData = allExistingBookings.filter(
+            (booking) => booking.group_id === groupId
+          );
+        }
 
-      document.getElementById("modal-event-customer").innerHTML = event.title;
-      document.getElementById("modal-event-services").innerHTML = `
-                                                    ${event.extendedProps.services
-                                                      .map((service) => {
-                                                        return `<li class="list-group-item" data-service-id="${service.service_id}">${service.service_name}</li>`;
-                                                      })
-                                                      .join("")}`;
-      document.getElementById("modal-event-appointment-date").innerHTML =
-        moment(event.extendedProps.appointment_date).format("MMM DD YYYY");
-      document.getElementById("modal-event-appointment-time").innerHTML =
-        moment(event.extendedProps.appointment_time, "HH:mm:ss").format(
-          "h:mm A"
+        // render booking modal content
+        renderBookingModal(bookingType, bookingData);
+
+        initializeCalendarModalDefaultContent();
+        showEventDetailsModal();
+
+        // Calendar Modal Update Fields
+        const calendarModalContent1 = document.getElementById(
+          "calendar-modal-content-1"
+        );
+        const calendarModalContent2 = document.getElementById(
+          "calendar-modal-content-2"
         );
 
-      document.getElementById(
-        "modal-event-service-status-container"
-      ).innerHTML = `
-       ${styledBookingServiceStatus}
-       <button type="button" class="btn dark-btn" id="service-status-update-btn">Update</button>
-      `;
+        const calendarModalContent3 = document.getElementById(
+          "calendar-modal-content-3"
+        );
 
-      document.getElementById(
-        "modal-event-service-notes-container"
-      ).innerHTML = `<p class="text-break">${event.extendedProps.notes}</p>`;
+        // Set the default value of the select based on booking_service_status
+        const serviceStatusSelect = document.getElementById("service-status");
 
-      document.getElementById("modal-event-reference-number").innerHTML =
-        event.extendedProps.reference_number;
+        // Add event listener to the Update button
+        document.getElementById("service-status-update-btn").onclick =
+          function () {
+            calendarModalContent1.classList.add("d-none");
+            calendarModalContent2.classList.remove("d-none");
+            calendarModalContent3.classList.add("d-none");
 
-      initializeCalendarModalDefaultContent();
-      showEventDetailsModal();
+            serviceStatusSelect.value =
+              event.extendedProps.booking_service_status;
 
-      // Calendar Modal Update Fields
-      const calendarModalContent1 = document.getElementById(
-        "calendar-modal-content-1"
-      );
-      const calendarModalContent2 = document.getElementById(
-        "calendar-modal-content-2"
-      );
+            // Set the transaction ID in the hidden field
+            document.getElementById("ref-number").value =
+              event.extendedProps.reference_number;
 
-      const calendarModalContent3 = document.getElementById(
-        "calendar-modal-content-3"
-      );
+            handleShowCompletedFormFields(serviceStatusSelect, event);
+          };
 
-      // Set the default value of the select based on booking_service_status
-      const serviceStatusSelect = document.getElementById("service-status");
+        document.getElementById("service-status-back-btn").onclick =
+          function () {
+            calendarModalContent1.classList.remove("d-none");
+            calendarModalContent2.classList.add("d-none");
+            calendarModalContent3.classList.add("d-none");
+          };
 
-      // Add event listener to the Update button
-      document.getElementById("service-status-update-btn").onclick =
-        function () {
-          calendarModalContent1.classList.add("d-none");
-          calendarModalContent2.classList.remove("d-none");
-          calendarModalContent3.classList.add("d-none");
+        document.getElementById("service-reschedule-btn").onclick =
+          async function () {
+            let barberIDs = [];
 
-          serviceStatusSelect.value =
-            event.extendedProps.booking_service_status;
+            if (event.extendedProps.booking_type.toLowerCase() === "group") {
+              barberIDs = allExistingBookings.map((booking) => {
+                return booking.barber_id;
+              });
+            } else {
+              barberIDs = [event.extendedProps.barber_id];
+            }
 
-          // Set the transaction ID in the hidden field
-          document.getElementById("ref-number").value =
-            event.extendedProps.reference_number;
+            const uniqueBarberIds = [...new Set(barberIDs)];
+            await loadRebookingCalendar(uniqueBarberIds);
 
+            // state variable
+            bookingRefNumber = event.extendedProps.reference_number;
+
+            calendarModalContent1.classList.add("d-none");
+            calendarModalContent2.classList.add("d-none");
+            calendarModalContent3.classList.remove("d-none");
+          };
+
+        document.getElementById("resched-booking-back-btn").onclick =
+          function () {
+            calendarModalContent1.classList.remove("d-none");
+            calendarModalContent2.classList.add("d-none");
+            calendarModalContent3.classList.add("d-none");
+          };
+
+        $("#service-status").on("change", function () {
           handleShowCompletedFormFields(serviceStatusSelect, event);
-        };
-
-      document.getElementById("service-status-back-btn").onclick = function () {
-        calendarModalContent1.classList.remove("d-none");
-        calendarModalContent2.classList.add("d-none");
-        calendarModalContent3.classList.add("d-none");
-      };
-
-      document.getElementById("service-reschedule-btn").onclick =
-        async function () {
-          await loadRebookingCalendar();
-
-          // state variable
-          bookingRefNumber = event.extendedProps.reference_number;
-
-          calendarModalContent1.classList.add("d-none");
-          calendarModalContent2.classList.add("d-none");
-          calendarModalContent3.classList.remove("d-none");
-        };
-
-      document.getElementById("resched-booking-back-btn").onclick =
-        function () {
-          calendarModalContent1.classList.remove("d-none");
-          calendarModalContent2.classList.add("d-none");
-          calendarModalContent3.classList.add("d-none");
-        };
-
-      $("#service-status").on("change", function () {
-        handleShowCompletedFormFields(serviceStatusSelect, event);
-      });
-    },
+        });
+      },
+    });
+    bookingsCalendar.render();
+    bookingsCalendars.push(bookingsCalendar);
   });
-  bookingsCalendar.render();
 }
 
 function getServiceByPriority(services) {
@@ -546,13 +553,13 @@ function getServiceByPriority(services) {
     .find((service) => service !== undefined);
 }
 
-async function loadBookingCalendarData(start, end) {
+async function loadBookingCalendarData(barberId, start, end) {
   try {
     // Calendar Modal Update Fields
 
     showSpinner();
     const response = await fetch(
-      `${dShaverApiSettings.calendarBookingsApi}?start=${start}&end=${end}`,
+      `${dShaverApiSettings.calendarBookingsApi}?barberId=${barberId}&start=${start}&end=${end}`,
       {
         headers: {
           "X-WP-Nonce": dShaverApiSettings.nonce, // Include nonce for security
@@ -792,8 +799,8 @@ async function loadWalkInCalendar() {
 }
 
 // Rebooking Calendar
-async function loadRebookingCalendar() {
-  const unavailableDates = await loadUnavailableDates();
+async function loadRebookingCalendar(barberIDs) {
+  const unavailableDates = await loadUnavailableDates(barberIDs);
 
   var options = {
     actions: {
@@ -804,7 +811,7 @@ async function loadRebookingCalendar() {
           "rescheduleTimeSpinner",
           "list-group-time-resched-container"
         );
-        const availableTimes = await loadAvailableTimes(reschedDate);
+        const availableTimes = await loadAvailableTimes(reschedDate, barberIDs);
 
         hideBookingTimeSpinner(
           "rescheduleTimeSpinner",
@@ -852,11 +859,16 @@ async function loadRebookingCalendar() {
 }
 
 // API call for unavailable dates
-async function loadUnavailableDates() {
+async function loadUnavailableDates(barberIDs) {
   try {
     showRebookingCalendarLoading();
     $("#service-status-update-btn").attr("disabled", true);
-    const response = await fetch(dShaverApiSettings.unavailableDatesApi, {
+
+    const apiUrl = `${
+      dShaverApiSettings.unavailableDatesApi
+    }?barber_id=${encodeURIComponent(barberIDs.join(","))}`;
+
+    const response = await fetch(apiUrl, {
       headers: {
         "X-WP-Nonce": dShaverApiSettings.nonce,
       },
@@ -876,7 +888,7 @@ async function loadUnavailableDates() {
 }
 
 // API call for available times
-async function loadAvailableTimes(selectedBookingDate) {
+async function loadAvailableTimes(selectedBookingDate, barberIDs) {
   try {
     if (!selectedBookingDate) {
       return [];
@@ -890,6 +902,7 @@ async function loadAvailableTimes(selectedBookingDate) {
       },
       body: JSON.stringify({
         selectedBookingDate: selectedBookingDate,
+        barberIDs: barberIDs,
       }),
     });
 
@@ -1470,6 +1483,273 @@ function renderSummaryListContent(clientSelectionType, data) {
       </div>
       `
     );
+  }
+}
+
+/** Render Single Booking Modal */
+function renderBookingModal(bookingType, bookingData) {
+  const calendarBookingModalContainer = $("#calendar-modal-content-1");
+  calendarBookingModalContainer.empty();
+
+  console.log("bookingData", bookingData);
+
+  if (bookingType.toLowerCase() === "single") {
+    const retrievedBookingServiceStatus = bookingData.booking_service_status;
+    let styledBookingServiceStatus = "";
+    // Style booking service status
+    if (retrievedBookingServiceStatus.toLowerCase() === "pending") {
+      styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-warning text-dark text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+    } else if (retrievedBookingServiceStatus.toLowerCase() === "completed") {
+      styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-success text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+    } else if (retrievedBookingServiceStatus.toLowerCase() === "no show") {
+      styledBookingServiceStatus = `<h5 class="m-0"><span class="badge text-uppercase" style="background-color: #ff5722 !important" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+    } else if (retrievedBookingServiceStatus.toLowerCase() === "cancelled") {
+      styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-danger text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+    }
+    const customer = bookingData.title;
+    const services = bookingData.services
+      .map((service) => {
+        return `<li class="list-group-item" data-service-id="${service.service_id}">${service.service_name}</li>`;
+      })
+      .join("");
+    const appointmentDate = moment(bookingData.appointment_date).format(
+      "MMM DD YYYY"
+    );
+    const appointmentTime = moment(
+      bookingData.appointment_time,
+      "HH:mm:ss"
+    ).format("h:mm A");
+    const notes = bookingData.notes;
+    const referenceNumber = bookingData.reference_number;
+    const barberName = bookingData.barber_name;
+    const bookingType = bookingData.booking_type;
+    calendarBookingModalContainer.append(
+      `
+      <h3 class="fw-bold mb-3 text-center" id="modal-event-customer">${customer}</h3>
+      <div class="row row-cols-1 gap-3 gap-md-4">
+          <div class="col">
+              <div class="w-auto d-flex align-items-center mb-2">
+                  <i class="fa-solid fa-bookmark me-2"></i>
+                  <p class="fw-semibold">Service/Services: </p>
+              </div>
+              <div>
+                  <ol class="list-group list-group-numbered gap-2" id="modal-event-services">
+                  ${services}
+                  </ol>
+              </div>
+          </div>
+          <div class="col">
+              <div class="d-flex flex-column gap-3 gap-md-4 border py-3 px-2 rounded">
+                  <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                      <div class="d-flex align-items-center">
+                          <i class="fa-solid fa-calendar me-2"></i>
+                          <p class="fw-semibold">Appointment Date: </p>
+                      </div>
+                      <div>
+                          <p id="modal-event-appointment-date">${appointmentDate}</p>
+                      </div>
+                  </div>
+                  <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                      <div class="d-flex align-items-center">
+                          <i class="fa-solid fa-business-time me-2"></i>
+                          <p class="fw-semibold">Appointment Time: </p>
+                      </div>
+                      <div>
+                          <p id="modal-event-appointment-time">${appointmentTime}</p>
+                      </div>
+                  </div>
+                  <button type="button" class="btn dark-btn" id="service-reschedule-btn">Reschedule</button>
+                  <div class="spinner-border mx-auto d-none" role="status" id="rescheduleDateSpinner">
+                      <span class="visually-hidden">Loading...</span>
+                  </div>
+                  </button>
+              </div>
+          </div>
+          <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+              <div class="d-flex align-items-center">
+                  <i class="fa-solid fa-square-poll-vertical me-2"></i>
+                  <p class="fw-semibold">Service Status: </p>
+              </div>
+              <div class=" d-flex gap-3 align-items-center justify-content-start" id="modal-event-service-status-container">
+                  ${styledBookingServiceStatus}
+                  <button type="button" class="btn dark-btn" id="service-status-update-btn">Update</button>
+              </div>
+          </div>
+          <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+              <div class="d-flex align-items-center">
+                  <i class="fa-solid fa-note-sticky me-2"></i>
+                  <p class="fw-semibold">Notes: </p>
+              </div>
+              <div class=" d-flex gap-3 align-items-center justify-content-start" id="modal-event-service-notes-container">
+                  <p class="text-break">${notes}</p>
+              </div>
+          </div>
+          <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+              <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                  <i class="fa-regular fa-id-badge me-2"></i>
+                  <p class="fw-semibold">Ref No: </p>
+              </div>
+              <div class="flex-shrink-1">
+                  <p class="text-break w-auto" id="modal-event-reference-number">
+                  ${referenceNumber}
+                  </p>
+              </div>
+          </div>
+          <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+              <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                  <i class="fa-solid fa-user me-2"></i>
+                  <p class="fw-semibold">Barber: </p>
+              </div>
+              <div class="flex-shrink-1">
+                  <p class="text-break w-auto" id="modal-event-barber-name">
+                  ${barberName}
+                  </p>
+              </div>
+          </div>
+          <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+              <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                  <i class="fa-solid fa-calendar-check me-2"></i>
+                  <p class="fw-semibold">Booking Type: </p>
+              </div>
+              <div class="flex-shrink-1">
+                  <p class="text-break w-auto" id="modal-event-booking-type">
+                  ${bookingType}
+                  </p>
+              </div>
+          </div>
+      </div>
+      `
+    );
+  } else if (bookingType.toLowerCase() === "group") {
+    bookingData.forEach((booking) => {
+      const retrievedBookingServiceStatus = booking.booking_service_status;
+      let styledBookingServiceStatus = "";
+      // Style booking service status
+      if (retrievedBookingServiceStatus.toLowerCase() === "pending") {
+        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-warning text-dark text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+      } else if (retrievedBookingServiceStatus.toLowerCase() === "completed") {
+        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-success text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+      } else if (retrievedBookingServiceStatus.toLowerCase() === "no show") {
+        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge text-uppercase" style="background-color: #ff5722 !important" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+      } else if (retrievedBookingServiceStatus.toLowerCase() === "cancelled") {
+        styledBookingServiceStatus = `<h5 class="m-0"><span class="badge bg-danger text-uppercase" data-service-status="${retrievedBookingServiceStatus}">${retrievedBookingServiceStatus}</span></h5>`;
+      }
+      const customer = booking.title;
+      const services = booking.services
+        .map((service) => {
+          return `<li class="list-group-item" data-service-id="${service.service_id}">${service.service_name}</li>`;
+        })
+        .join("");
+      const appointmentDate = moment(booking.appointment_date).format(
+        "MMM DD YYYY"
+      );
+      const appointmentTime = moment(
+        booking.appointment_time,
+        "HH:mm:ss"
+      ).format("h:mm A");
+      const notes = booking.notes;
+      const referenceNumber = booking.reference_number;
+      const barberName = booking.barber_name;
+      const bookingType = booking.booking_type;
+
+      calendarBookingModalContainer.append(
+        `
+        <h3 class="fw-bold mb-3 text-center" id="modal-event-customer">${customer}</h3>
+        <div class="row row-cols-1 gap-3 gap-md-4">
+            <div class="col">
+                <div class="w-auto d-flex align-items-center mb-2">
+                    <i class="fa-solid fa-bookmark me-2"></i>
+                    <p class="fw-semibold">Service/Services: </p>
+                </div>
+                <div>
+                    <ol class="list-group list-group-numbered gap-2" id="modal-event-services">
+                    ${services}
+                    </ol>
+                </div>
+            </div>
+            <div class="col">
+                <div class="d-flex flex-column gap-3 gap-md-4 border py-3 px-2 rounded">
+                    <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fa-solid fa-calendar me-2"></i>
+                            <p class="fw-semibold">Appointment Date: </p>
+                        </div>
+                        <div>
+                            <p id="modal-event-appointment-date">${appointmentDate}</p>
+                        </div>
+                    </div>
+                    <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fa-solid fa-business-time me-2"></i>
+                            <p class="fw-semibold">Appointment Time: </p>
+                        </div>
+                        <div>
+                            <p id="modal-event-appointment-time">${appointmentTime}</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn dark-btn" id="service-reschedule-btn">Reschedule</button>
+                    <div class="spinner-border mx-auto d-none" role="status" id="rescheduleDateSpinner">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    </button>
+                </div>
+            </div>
+            <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-square-poll-vertical me-2"></i>
+                    <p class="fw-semibold">Service Status: </p>
+                </div>
+                <div class=" d-flex gap-3 align-items-center justify-content-start" id="modal-event-service-status-container">
+                    ${styledBookingServiceStatus}
+                    <button type="button" class="btn dark-btn" id="service-status-update-btn">Update</button>
+                </div>
+            </div>
+            <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-note-sticky me-2"></i>
+                    <p class="fw-semibold">Notes: </p>
+                </div>
+                <div class=" d-flex gap-3 align-items-center justify-content-start" id="modal-event-service-notes-container">
+                    <p class="text-break">${notes}</p>
+                </div>
+            </div>
+            <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                    <i class="fa-regular fa-id-badge me-2"></i>
+                    <p class="fw-semibold">Ref No: </p>
+                </div>
+                <div class="flex-shrink-1">
+                    <p class="text-break w-auto" id="modal-event-reference-number">
+                    ${referenceNumber}
+                    </p>
+                </div>
+            </div>
+            <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                    <i class="fa-solid fa-user me-2"></i>
+                    <p class="fw-semibold">Barber: </p>
+                </div>
+                <div class="flex-shrink-1">
+                    <p class="text-break w-auto" id="modal-event-barber-name">
+                    ${barberName}
+                    </p>
+                </div>
+            </div>
+            <div class="col d-flex flex-column flex-md-row align-items-center justify-content-between column-gap-3">
+                <div class="flex-grow-1 flex-shrink-0 d-flex align-items-center">
+                    <i class="fa-solid fa-calendar-check me-2"></i>
+                    <p class="fw-semibold">Booking Type: </p>
+                </div>
+                <div class="flex-shrink-1">
+                    <p class="text-break w-auto" id="modal-event-booking-type">
+                    ${bookingType}
+                    </p>
+                </div>
+            </div>
+        </div>
+        `
+      );
+    });
   }
 }
 /** END - FUNCTIONS **/

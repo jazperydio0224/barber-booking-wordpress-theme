@@ -571,7 +571,6 @@ add_action('rest_api_init', function () {
  * @return array The bookings data as an array of associative arrays.
  */
 function get_bookings_callback()
-
 {
 	$bookings = [];
 
@@ -785,6 +784,7 @@ add_action('rest_api_init', function () {
 
 function dshaver_get_calendar_bookings($data)
 {
+	$barber_id_payload = sanitize_text_field($data['barberId']);
 	$start = sanitize_text_field($data['start']); // Start date
 	$end = sanitize_text_field($data['end']);     // End date.
 
@@ -800,6 +800,11 @@ function dshaver_get_calendar_bookings($data)
 				'value' => array($start, $end),
 				'compare' => 'BETWEEN',
 				'type' => 'DATE'
+			),
+			array(
+				'key' => 'barber_id',
+				'value' => $barber_id_payload,
+				'compare' => '='
 			)
 		),
 		'posts_per_page' => -1
@@ -811,6 +816,15 @@ function dshaver_get_calendar_bookings($data)
 	if ($booking_query->have_posts()) {
 		while ($booking_query->have_posts()) {
 			$booking_query->the_post();
+
+			// BARBER
+			$barber_id = get_post_meta(get_the_ID(), 'barber_id', true);
+			$barber_post = get_post($barber_id);
+			$barber_name = '';
+
+			if ($barber_post) {
+				$barber_name = get_field('barber_name', $barber_id);
+			}
 
 			// CLIENT
 			$client_id = get_post_meta(get_the_ID(), 'client_id', true);
@@ -872,6 +886,10 @@ function dshaver_get_calendar_bookings($data)
 				'client_name' => $client_name,
 				'appointment_date' => get_post_meta(get_the_ID(), 'appointment_date', true),
 				'appointment_time' => get_post_meta(get_the_ID(), 'appointment_time', true),
+				'barber_id' => $barber_id,
+				'barber_name' => $barber_name,
+				'booking_type' => get_post_meta(get_the_ID(), 'booking_type', true),
+				'group_id' => get_post_meta(get_the_ID(), 'group_id', true),
 				'services' => $services,
 				'booking_service_status' => $service_status_name,
 				'notes' => get_post_meta(get_the_ID(), 'notes', true)
@@ -906,15 +924,25 @@ function add_new_booking_callback($request)
 	$booking_type = sanitize_text_field($request->get_param('bookingType'));
 
 	if ($booking_type === 'single') {
-		$barber = $request->get_param('barber');
-		$services = $request->get_param('services');
-		$date = sanitize_text_field($request->get_param('date'));
-		$time = sanitize_text_field($request->get_param('time'));
-		$customer = sanitize_text_field($request->get_param('customer'));
-		$email_address = sanitize_email($request->get_param('emailAddress'));
-		$mobile_number = sanitize_text_field($request->get_param('mobileNumber')) ?? '';
-		$date_of_birth = sanitize_text_field($request->get_param('dateOfBirth')) ?? '';
-		$total_price = floatval($request->get_param('totalPrice'));
+		$booking_item = $request->get_param('bookingItem');
+
+		if (!is_array($booking_item)) {
+			return rest_ensure_response(array(
+				'success' => false,
+				'message' => 'Booking item must be an array.',
+				'status' => 400
+			));
+		}
+
+		$barber = $booking_item['barber'] ?? '';
+		$services = $booking_item['services'] ?? [];
+		$date = sanitize_text_field($booking_item['date'] ?? '');
+		$time = sanitize_text_field($booking_item['time'] ?? '');
+		$customer = sanitize_text_field($booking_item['customer'] ?? '');
+		$email_address = sanitize_email($booking_item['emailAddress'] ?? '');
+		$mobile_number = sanitize_text_field($booking_item['mobileNumber'] ?? '');
+		$date_of_birth = sanitize_text_field($booking_item['dateOfBirth'] ?? '');
+		$total_price = floatval($booking_item['totalPrice'] ?? 0);
 
 		// Validate total_price
 		if ($total_price < 0) {
@@ -1002,6 +1030,8 @@ function add_new_booking_callback($request)
 			'appointment_time' => $time,
 			'total_amount' => $total_price,
 			'total_amount_currency' => $currency,
+			'booking_type' => $booking_type,
+			'group_id' => '',
 			'services' => $services,
 			'service_status' => 'Pending', // Set the initial service status
 			'notes' => ''
@@ -1031,7 +1061,7 @@ function add_new_booking_callback($request)
 			'services' => implode(', ', $services_list)
 		);
 
-		$booking_confirmation_sent = send_booking_email($email_address, $booking_email_details);
+		$booking_confirmation_sent = send_booking_email($booking_type, $email_address, $booking_email_details);
 
 		// Delete the transient lock here, before returning the response
 		delete_transient($booking_key);
@@ -1041,14 +1071,16 @@ function add_new_booking_callback($request)
 				'success' => true,
 				'message' => 'Booking was successful but failed to send confirmation email. Please contact us at +64224259522',
 				'data' => array(
-					'booking_reference_number' => $booking_reference_number,
-					'client_name' => $client['full_name'],
-					'barber_name' => $barber['barber_name'],
-					'appointment_date' => $date,
-					'appointment_time' => $time,
-					'total_amount' => $total_price,
-					'services' => implode(', ', $services_list)
-
+					'bookingType' => 'single',
+					'bookingDetails' => array(
+						'booking_reference_number' => $booking_reference_number,
+						'client_name' => $client['full_name'],
+						'barber_name' => $barber['barber_name'],
+						'appointment_date' => $date,
+						'appointment_time' => $time,
+						'total_amount' => $total_price,
+						'services' => implode(', ', $services_list)
+					)
 				)
 			), 200);
 		} else {
@@ -1056,14 +1088,224 @@ function add_new_booking_callback($request)
 				'success' => true,
 				'message' => 'Booking created successfully',
 				'data' => array(
-					'booking_reference_number' => $booking_reference_number,
-					'client_name' => $client['full_name'],
-					'barber_name' => $barber['barber_name'],
-					'appointment_date' => $date,
-					'appointment_time' => $time,
-					'total_amount' => $total_price,
-					'services' => implode(', ', $services_list)
+					'bookingType' => 'single',
+					'bookingDetails' => array(
+						'booking_reference_number' => $booking_reference_number,
+						'client_name' => $client['full_name'],
+						'barber_name' => $barber['barber_name'],
+						'appointment_date' => $date,
+						'appointment_time' => $time,
+						'total_amount' => $total_price,
+						'services' => implode(', ', $services_list)
+					)
+				)
+			), 200);
+		}
+	} elseif ($booking_type == 'group') {
+		$booking_items = $request->get_param('bookingItems');
+		$form_fillout_type = $request->get_param('formFilloutType');
+		$group_id = $request->get_param('groupId');
 
+		if (!is_array($booking_items) || empty($booking_items)) {
+			return rest_ensure_response(array(
+				'success' => false,
+				'message' => 'Booking items must be an array.',
+				'status' => 400
+			));
+		}
+
+
+		$date = sanitize_text_field($booking_items[0]['date'] ?? '');
+		$time = sanitize_text_field($booking_items[0]['time'] ?? '');
+		// add wp transients in order to prevent race conditions
+		$booking_key = "booking_{$date}_{$time}";
+		$is_locked = get_transient($booking_key);
+
+		if ($is_locked) {
+			return rest_ensure_response(array(
+				'success' => false,
+				'message' => 'This time slot is currently being booked by another user. Please try again.',
+			), 409);
+		}
+
+		// get unique barber IDs
+		$barber_ids = array_map(function ($booking_item) {
+			return $booking_item['barber']['barber_id'];
+		}, $booking_items);
+
+		$unique_barber_ids = array_unique($barber_ids);
+
+		$total_durations = array_map(function ($booking) {
+			$total_duration = array_sum(array_column($booking['services'], 'serviceDuration'));
+			return [
+				'totalDuration' => $total_duration,
+			];
+		}, $booking_items);
+
+		$longest_duration_booking = array_reduce($total_durations, function ($carry, $item) {
+			return ($carry === null || $item['totalDuration'] > $carry['totalDuration']) ? $item : $carry;
+		}, null);
+
+
+		// ** check for booking conflicts
+		foreach ($unique_barber_ids as $barber_id) {
+			$conflict = check_booking_conflict($date, $time, $barber_id, $longest_duration_booking);
+			if ($conflict) {
+				delete_transient($booking_key);
+				return rest_ensure_response(array(
+					'success' => false,
+					'message' => 'This time slot is no longer available. Please choose another time.',
+				), 409); // 409 Conflict
+			}
+		}
+
+		// Set a transient lock for 30 seconds
+		set_transient($booking_key, true, 30);
+
+		// Group Booking Email Information
+		$group_booking_email_details = [];
+
+		foreach ($booking_items as $item) {
+			if (!is_array($item) || !is_object((object)$item)) {
+				return rest_ensure_response(array(
+					'success' => false,
+					'message' => 'Each booking item must be an object.',
+					'status' => 400
+				));
+			}
+
+			$is_main = $item['isMain'] ?? false;
+			$barber = $item['barber'] ?? '';
+			$services = $item['services'] ?? [];
+			$date = sanitize_text_field($item['date'] ?? '');
+			$time = sanitize_text_field($item['time'] ?? '');
+			$customer = sanitize_text_field($item['customer'] ?? '');
+			$email_address = sanitize_email($item['emailAddress'] ?? '');
+			$mobile_number = sanitize_text_field($item['mobileNumber'] ?? '');
+			$date_of_birth = sanitize_text_field($item['dateOfBirth'] ?? '');
+			$total_price = floatval($item['totalPrice'] ?? 0);
+
+			// Validate total_price
+			if ($total_price < 0) {
+				return rest_ensure_response(array('success' => false, 'message' => 'Total price must be a positive number'), 404);
+			}
+
+			if ($is_main && (empty($barber) || empty($services) || empty($date) || empty($time) || empty($customer) || empty($email_address))) {
+				return rest_ensure_response(array('success' => false, 'message' => 'Missing required fields'), 404);
+			}
+
+			if (!$is_main && (empty($barber) || empty($services) || empty($date) || empty($time) || empty($customer))) {
+				return rest_ensure_response(array('success' => false, 'message' => 'Missing required fields'), 404);
+			}
+
+			// Validate and format the date of birth
+			$date_of_birth_obj = null;
+			$date_of_birth_formatted = '';
+			if ($date_of_birth !== '') {
+				$date_of_birth_obj = DateTime::createFromFormat('Y-m-d', $date_of_birth);
+				if ($date_of_birth_obj !== false) {
+					// Format it as a string in 'Y-m-d'
+					$date_of_birth_formatted = $date_of_birth_obj->format('Y-m-d');
+				}
+			}
+			if ($date_of_birth_formatted !== '' && $date_of_birth_obj !== null && $date_of_birth_obj->format('Y-m-d') !== $date_of_birth) {
+				return rest_ensure_response(array('success' => false, 'message' => 'Invalid date format for date of birth. Expected format: YYYY-MM-DD'), 404);
+			}
+
+			// the total duration variable for checking conflicts
+			$total_duration = 0;
+			foreach ($services as $service) {
+				$service_id = $service['serviceId'];
+				$duration = get_post_meta($service_id, 'serviceDuration', true);
+				$total_duration += intval($duration);
+			}
+			$total_duration = max($total_duration, 15);
+
+			// 0. check if barber exists
+			$barber_exists = check_if_barber_exists($barber);
+			if (!$barber_exists) {
+				return rest_ensure_response(array('success' => false, 'message' => 'Barber does not exist'), 404);
+			}
+
+			// 1. create or get client details
+			$client_details = array(
+				'customer_name' => $customer,
+				'email_address' => $email_address,
+				'mobile_number' => $mobile_number,
+				'date_of_birth' => $date_of_birth_formatted
+			);
+
+			$client = create_or_get_client($client_details);
+
+			if (!$client) {
+				return rest_ensure_response(array('success' => false, 'message' => 'Failed to create or get client'), 404);
+			}
+
+			$currency = $services[0]['servicePriceCurrency'];
+			// 2. create booking
+			$booking_details = array(
+				'client_id' => $client['id'],
+				'barber_id' => $barber['barber_id'],
+				'client_name' => $client['full_name'],
+				'appointment_date' => $date,
+				'appointment_time' => $time,
+				'total_amount' => $total_price,
+				'total_amount_currency' => $currency,
+				'booking_type' => $booking_type,
+				'group_id' => $group_id,
+				'services' => $services,
+				'service_status' => 'Pending', // Set the initial service status
+				'notes' => ''
+			);
+			$booking_reference_number = create_booking_post($booking_details);
+			if (!$booking_reference_number) {
+				return rest_ensure_response(array('success' => false, 'message' => 'Failed to create booking'), 404);
+			}
+
+			// 3. create booking notification
+			create_booking_notification($booking_reference_number, $client['full_name'], $barber['barber_name'], $date, $time);
+
+			// 4. send confirmation email
+			$services_list = [];
+			foreach ($services as $item) {
+				$service = sanitize_text_field($item['serviceName'] ?? '');
+				$services_list[] = $service;
+			}
+
+			$group_booking_email_details[] = array(
+				'reference_number' => $booking_reference_number,
+				'client_name' => $client['full_name'],
+				'barber_name' => $barber['barber_name'],
+				'appointment_date' => $date,
+				'appointment_time' => $time,
+				'total_amount' => $total_price,
+				'services' => implode(', ', $services_list)
+			);
+		}
+
+		$email_address = $group_booking_email_details[0]['email_address'];
+		$booking_confirmation_sent = send_booking_email($booking_type, $email_address, $group_booking_email_details);
+
+		delete_transient($booking_key);
+
+		if (!$booking_confirmation_sent) {
+			return rest_ensure_response(array(
+				'success' => true,
+				'message' => 'Booking was successful but failed to send confirmation email. Please contact us at +64224259522',
+				'data' => array(
+					'bookingType' => 'group',
+					'formFilloutType' => $form_fillout_type,
+					'bookingDetails' => $group_booking_email_details
+				)
+			), 200);
+		} else {
+			return rest_ensure_response(array(
+				'success' => true,
+				'message' => 'Booking created successfully',
+				'data' => array(
+					'bookingType' => 'group',
+					'formFilloutType' => $form_fillout_type,
+					'bookingDetails' => $group_booking_email_details
 				)
 			), 200);
 		}
@@ -1287,6 +1529,8 @@ function create_booking_post($booking_details)
 		'appointment_time' => sanitize_text_field($booking_details['appointment_time']),
 		'total_amount' => floatval($booking_details['total_amount']),
 		'total_amount_currency' => sanitize_text_field($booking_details['total_amount_currency']),
+		'booking_type' => sanitize_text_field($booking_details['booking_type']),
+		'group_id' => sanitize_text_field($booking_details['group_id']),
 		'services' => $services_ids,
 		'service_status' => $service_status_id,
 		'notes' => $booking_details['notes']
@@ -1311,29 +1555,60 @@ function generate_unique_reference_number($latest_post_id)
 	return 'DSC-BK-' . ($latest_post_id + 1);
 }
 
-function send_booking_email($email, $booking_email_details)
+function send_booking_email($booking_type, $email, $booking_email_details)
 {
-	// HTML content for the email notification
-	$stripe_subject = "Your Booking Confirmation";
-	$stripe_message = "<p>Dear " . esc_html($booking_email_details['client_name']) . ",</p>";
-	$stripe_message .= "<p>Thank you for choosing D'Shaver and Comb! We're excited to confirm your appointment. Here are the details of your booking: </p>";
-	$stripe_message .= "<p><strong>Booking Details:</strong></p>";
-	$stripe_message .= "<p>Ref No: " . esc_html($booking_email_details['reference_number']) . "</p>";
-	$stripe_message .= "<p>Name: " . esc_html($booking_email_details['client_name']) . "</p>";
-	$stripe_message .= "<p>Barber: " . esc_html($booking_email_details['barber_name']) . "</p>";
-	$stripe_message .= "<p>Appointment Date: " . esc_html($booking_email_details['appointment_date']) . "</p>";
-	$stripe_message .= "<p>Appointment Time: " . esc_html($booking_email_details['appointment_time']) . "</p>";
-	$stripe_message .= "<p>Services: " . esc_html($booking_email_details['services']) . "</p>";
-	$stripe_message .= "<p>Total Amount: " . "$" . esc_html($booking_email_details['total_amount']) . "</p>";
-	$stripe_message .= "<p>Location: 490 Pakuranga Road, Half Moon Bay, Auckland</p>";
-	$stripe_message .= "<p>Thank you for your payment and booking with us.</p>";
-	$stripe_message .= "<p>Best regards,<br>D'Shaver and Comb</p>";
+	$email_subject = "Your Booking Confirmation";
+
+	if ($booking_type == 'group') {
+		$email_message = "<p>Dear Customer,</p>";
+		$email_message .= "<p>Thank you for choosing D'Shaver and Comb! We're excited to confirm your group appointment. Here are the details of your booking(s): </p>";
+
+		$total_amount = 0;
+		foreach ($booking_email_details as $booking_detail) {
+			$total_amount += $booking_detail['total_amount'];
+			// Construct booking details for each person in the group
+			$email_message .= "<p><strong>Booking Details:</strong></p>";
+			$email_message .= "<p>Ref No: " . esc_html($booking_detail['reference_number']) . "</p>";
+			$email_message .= "<p>Name: " . esc_html($booking_detail['client_name']) . "</p>";
+			$email_message .= "<p>Barber: " . esc_html($booking_detail['barber_name']) . "</p>";
+			$email_message .= "<p>Services: " . esc_html($booking_detail['services']) . "</p>";
+			$email_message .= "<p>Amount: " . "$" . esc_html($booking_detail['total_amount']) . "</p>";
+			$email_message .= "<hr>";
+		}
+
+		$appointment_date = $booking_email_details[0]['appointment_date'];
+		$appointment_time = $booking_email_details[0]['appointment_time'];
+
+		$email_message .= "<p>Total Amount: " . esc_html($total_amount) . "</p>";
+		$email_message .= "<p>Appointment Date: " . esc_html($appointment_date) . "</p>";
+		$email_message .= "<p>Appointment Time: " . esc_html($appointment_time) . "</p>";
+		$email_message .= "<p>Location: 490 Pakuranga Road, Half Moon Bay, Auckland</p>";
+		$email_message .= "<hr>";
+
+		$email_message .= "<p>Thank you for your payment and booking with us.</p>";
+		$email_message .= "<p>Best regards,<br>D'Shaver and Comb</p>";
+	} else {
+		// Single booking - directly use the booking details
+		$email_message = "<p>Dear " . esc_html($booking_email_details['client_name']) . ",</p>";
+		$email_message .= "<p>Thank you for choosing D'Shaver and Comb! We're excited to confirm your appointment. Here are the details of your booking: </p>";
+		$email_message .= "<p><strong>Booking Details:</strong></p>";
+		$email_message .= "<p>Ref No: " . esc_html($booking_email_details['reference_number']) . "</p>";
+		$email_message .= "<p>Name: " . esc_html($booking_email_details['client_name']) . "</p>";
+		$email_message .= "<p>Barber: " . esc_html($booking_email_details['barber_name']) . "</p>";
+		$email_message .= "<p>Appointment Date: " . esc_html($booking_email_details['appointment_date']) . "</p>";
+		$email_message .= "<p>Appointment Time: " . esc_html($booking_email_details['appointment_time']) . "</p>";
+		$email_message .= "<p>Services: " . esc_html($booking_email_details['services']) . "</p>";
+		$email_message .= "<p>Total Amount: " . "$" . esc_html($booking_email_details['total_amount']) . "</p>";
+		$email_message .= "<p>Location: 490 Pakuranga Road, Half Moon Bay, Auckland</p>";
+		$email_message .= "<p>Thank you for your payment and booking with us.</p>";
+		$email_message .= "<p>Best regards,<br>D'Shaver and Comb</p>";
+	}
 
 	// Email headers for HTML content
 	$headers = array('Content-Type: text/html; charset=UTF-8');
 
 	// Send email to the email address
-	$booking_email_result = wp_mail($email, $stripe_subject, $stripe_message, $headers);
+	$booking_email_result = wp_mail($email, $email_subject, $email_message, $headers);
 	if (!$booking_email_result) {
 		error_log('Failed to send notification email to: ' . $email);
 		return false;

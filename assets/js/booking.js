@@ -1155,7 +1155,10 @@
             "Content-Type": "application/json",
             "X-WP-Nonce": dShaverApiSettings.nonce,
           },
-          body: JSON.stringify(bookingItem),
+          body: JSON.stringify({
+            bookingType: bookingTypeSelection,
+            bookingItem: bookingItem,
+          }),
         });
 
         const data = await response.json();
@@ -1166,28 +1169,41 @@
           showToast(data.message, "success");
           resetTrackedValues();
 
-          const {
-            booking_reference_number,
-            client_name,
-            barber_name,
-            appointment_date,
-            appointment_time,
-            total_amount,
-            services,
-          } = data.data;
+          if (data.data.bookingType === "single") {
+            const {
+              booking_reference_number,
+              client_name,
+              barber_name,
+              appointment_date,
+              appointment_time,
+              total_amount,
+              services,
+            } = data.data.bookingDetails;
 
-          const pathName =
-            `${dShaverApiSettings.bookingSuccessfulURL}?` +
-            `bookingRefNumber=${encodeURIComponent(
-              booking_reference_number
-            )}&` +
-            `clientName=${encodeURIComponent(client_name)}&` +
-            `barberName=${encodeURIComponent(barber_name)}&` +
-            `appointmentDate=${encodeURIComponent(appointment_date)}&` +
-            `appointmentTime=${encodeURIComponent(appointment_time)}&` +
-            `totalAmount=${encodeURIComponent(total_amount)}&` +
-            `services=${encodeURIComponent(services)}`;
-          window.location.href = pathName;
+            const pathName =
+              `${dShaverApiSettings.bookingSuccessfulURL}?` +
+              `bookingType=${encodeURIComponent(data.data.bookingType)}&` +
+              `bookingRefNumber=${encodeURIComponent(
+                booking_reference_number
+              )}&` +
+              `clientName=${encodeURIComponent(client_name)}&` +
+              `barberName=${encodeURIComponent(barber_name)}&` +
+              `appointmentDate=${encodeURIComponent(appointment_date)}&` +
+              `appointmentTime=${encodeURIComponent(appointment_time)}&` +
+              `totalAmount=${encodeURIComponent(total_amount)}&` +
+              `services=${encodeURIComponent(services)}`;
+            window.location.href = pathName;
+          } else if (data.data.bookingType === "group") {
+            const bookingDetailsArray = data.data.bookingDetails;
+
+            const pathName =
+              `${dShaverApiSettings.groupBookingSuccessfulURL}?` +
+              `bookingType=${encodeURIComponent(data.data.bookingType)}&` +
+              `bookingDetails=${encodeURIComponent(
+                JSON.stringify(bookingDetailsArray)
+              )}`;
+            window.location.href = pathName;
+          }
         } else {
           showToast(data.message, "danger");
           hideBookingSubmissionSpinner();
